@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
         if(mUsageStatCollector.hasPermission()){
             if(entryList.isEmpty()){
                 progressBar.setVisibility(View.VISIBLE);
-                mUsageStatCollector.collectFromLast(UsageStatCollector.WEEK_MS);
+                mUsageStatCollector.collectFromLast(UsageStatCollector.DAY_MS);
             }else{
                 //chart will render the same data it has
             }

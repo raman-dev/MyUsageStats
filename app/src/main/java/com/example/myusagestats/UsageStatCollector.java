@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class UsageStatCollector {
 
 
-    private static final float MIN_USAGE_TIME = 5f;
+    private static final float MIN_USAGE_TIME = 3f;
     public static int NEW_ENTRY = -2563;
     public static long HOUR_MS = 1000*60*60;
     public static long DAY_MS = HOUR_MS*24;
@@ -95,7 +95,9 @@ public class UsageStatCollector {
                 //check if the event pertains to a user installed app
                 try {
                     ApplicationInfo appInfo = packageManager.getApplicationInfo(event.getPackageName(),PackageManager.GET_META_DATA);
-                    if((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 1){
+                    //System.out.println(appInfo.sourceDir);
+                    String inSystem = appInfo.sourceDir.split("/")[1];
+                    if(!inSystem.equals("system")){
                         String packageName = appInfo.packageName;
                         String name = (String)packageManager.getApplicationLabel(appInfo);
                         String key = packageName+","+name;
@@ -145,6 +147,8 @@ public class UsageStatCollector {
                 AppUsageWrapper auw = new AppUsageWrapper(packageName,appName,time);
                 Message message = mHandler.obtainMessage(NEW_ENTRY,auw);
                 mHandler.sendMessage(message);
+            }else{
+                System.out.println(appName +" has insignificant usage!");
             }
 
         }
