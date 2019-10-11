@@ -44,6 +44,6 @@ public class CustomBarChart extends BarChart {
         setDragEnabled(false);
         setPinchZoom(false);
         setFitBars(true);
-        setNoDataText("Collecting Stats...");
+        //setNoDataText("Collecting Stats...");
     }
 }

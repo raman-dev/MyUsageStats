@@ -11,7 +11,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.provider.Settings;
-import android.view.Menu;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 
@@ -24,7 +24,9 @@ import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+
+    private static final String TAG = "MainActivity";
 
     private UsageStatCollector mUsageStatCollector;
     private Handler mHandler;//handler to recieve messages from the work threads
@@ -39,35 +41,52 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.i(TAG,"onCreate!");
         setContentView(R.layout.activity_main);
 
         Toolbar toolbar = findViewById(R.id.mainToolbar);
         setSupportActionBar(toolbar);
 
+        entryList = new ArrayList<>();
+        labelList = new ArrayList<>();
+
+        barDataSet = new BarDataSet(entryList,"AppNames");
+        barDataSet.setColors(ColorTemplate.COLORFUL_COLORS);
+        barDataSet.setValueTextSize(10f);
+        barDataSet.setValueTextColor(Color.WHITE);
+
+
+
         barChart = findViewById(R.id.barChart);
+
+
         progressBar = findViewById(R.id.progressBar);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        System.out.println("onStart!");
-        entryList = new ArrayList<>();
-        labelList = new ArrayList<>();
+        Log.i(TAG,"onStart!");
 
         mHandler = new UsageDataHandler(Looper.getMainLooper());
-        mUsageStatCollector = UsageStatCollector.getInstance(mHandler,getPackageManager(),(UsageStatsManager)getSystemService(USAGE_STATS_SERVICE));
+        mUsageStatCollector = new UsageStatCollector(mHandler,getPackageManager(),(UsageStatsManager)getSystemService(USAGE_STATS_SERVICE));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+
+        barData = new BarData(barDataSet);
+        barData.setBarWidth(0.5f);
+        barChart.setData(barData);
+        Log.i(TAG,"onResume!");
         if(mUsageStatCollector.hasPermission()){
-            if(entryList.isEmpty()){
-                progressBar.setVisibility(View.VISIBLE);
-                mUsageStatCollector.collectFromLast(UsageStatCollector.DAY_MS);
+            if(barChart.isEmpty()){
+                //progressBar.setVisibility(View.VISIBLE);
+                mUsageStatCollector.collectFromLast(UsageStatCollector.WEEK_MS);
             }else{
                 //chart will render the same data it has
+                System.out.println("NOT RECALCULATING!!!");
             }
         }else{
             //get user to give app permission
@@ -78,29 +97,42 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.i(TAG,"onPause!");
+        mUsageStatCollector.stop();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        System.out.println("onStop!");
+        Log.i(TAG,"onStop!");
 
         barChart.clear();
-        barData = null;
-        barDataSet = null;
+        barData.clearValues();
+        barDataSet.clear();
 
         entryList.clear();
         labelList.clear();
 
-        entryList = null;
-        labelList = null;
-
-
         mHandler.removeCallbacksAndMessages(null);
         mHandler = null;
-
-        mUsageStatCollector.stop();
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.i(TAG,"onDestroy!");
+    }
+
+    @Override
+    public void onClick(View v) {
+        System.out.println(entryList.toString());
+        barData.notifyDataChanged();
+        /*barData.getDataSets().forEach( x ->{
+            System.out.println("entry_count =>"+x.getEntryCount());
+        });*/
+        barChart.invalidate();
+    }
+
     private class UsageDataHandler extends Handler {
         public UsageDataHandler(Looper mainLooper) {
             super(mainLooper);
@@ -109,37 +141,24 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void handleMessage(Message msg) {
             if(msg.what == UsageStatCollector.NEW_ENTRY){
-                progressBar.setVisibility(View.GONE);
+                //progressBar.setVisibility(View.GONE);
                 AppUsageWrapper entryWrapper = (AppUsageWrapper)msg.obj;
                 CustomBarEntry entry = new CustomBarEntry(entryWrapper.appName,entryWrapper.packageName,entryList.size(),entryWrapper.time);
-                System.out.println("NEW_ENTRY:("+entryList.size()+")used "+entry.name+" time_minutes =>"+entry.getY());
-                if(entryList.isEmpty()){
-                    //first addition to chart
-                    entryList.add(entry);
-                    labelList.add(entry.name);
+                Log.i(TAG,"NEW_ENTRY:("+entryList.size()+")used "+entry.name+" time_minutes =>"+entry.getY());
 
-                    barDataSet = new BarDataSet(entryList,"AppNames");
-                    barDataSet.setColors(ColorTemplate.COLORFUL_COLORS);
-                    barDataSet.setValueTextSize(10f);
-                    barDataSet.setValueTextColor(Color.WHITE);
+                labelList.add(entry.name);
 
-                    barData = new BarData(barDataSet);
-                    barData.setBarWidth(0.5f);
+                barChart.getXAxis().setLabelCount(labelList.size());
+                barChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labelList));
 
-                    barChart.getXAxis().setLabelCount(labelList.size());
-                    barChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labelList));
+                barDataSet.addEntry(entry);
+                barDataSet.notifyDataSetChanged();
 
-                    barChart.setData(barData);
-                    barChart.animateY(1500);
-                }else{
-                    labelList.add(entry.name);
+                barData.notifyDataChanged();
 
-                    barChart.getXAxis().setLabelCount(labelList.size());
-                    barChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labelList));
+                System.out.println("entry_count=>"+barData.getEntryCount());
 
-                    barDataSet.addEntry(entry);
-                    barData.notifyDataChanged();
-                }
+                barChart.animateY(1500);
                 barChart.notifyDataSetChanged();
                 barChart.invalidate();
             }else {

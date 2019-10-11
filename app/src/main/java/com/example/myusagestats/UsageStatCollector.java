@@ -17,13 +17,12 @@ import java.util.concurrent.TimeUnit;
 public class UsageStatCollector {
 
 
-    private static final float MIN_USAGE_TIME = 3f;
+    private static final float MIN_USAGE_TIME = 0f;
     public static int NEW_ENTRY = -2563;
     public static long HOUR_MS = 1000*60*60;
     public static long DAY_MS = HOUR_MS*24;
     public static long WEEK_MS = DAY_MS*7;
 
-    private static UsageStatCollector mInstance;
     private Handler mHandler;
     private PackageManager packageManager;
     private UsageStatsManager usageStatsManager;
@@ -31,23 +30,14 @@ public class UsageStatCollector {
     private ExecutorService executorService;
     private int nThreads = 5;
 
-    static{
-        mInstance = new UsageStatCollector();
-    }
 
-    private UsageStatCollector(){
+    public UsageStatCollector (Handler mHandler, PackageManager packageManager, UsageStatsManager usageStatsManager) {
+        this.mHandler = mHandler;
+        this.packageManager = packageManager;
+        this.usageStatsManager = usageStatsManager;
+
         executorService = Executors.newFixedThreadPool(nThreads);
-    }
-
-    public static UsageStatCollector getInstance(Handler mHandler, PackageManager packageManager, UsageStatsManager usageStatsManager) {
-        if(mInstance.mHandler == null){
-            mInstance.mHandler = mHandler;
-            mInstance.packageManager = packageManager;
-            mInstance.usageStatsManager = usageStatsManager;
-            System.out.println("UsageStatCollector Initialized!");
-        }
-
-        return mInstance;
+        System.out.println("UsageStatCollector Initialized!");
     }
 
     public boolean hasPermission() {
