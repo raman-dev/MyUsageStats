@@ -59,7 +59,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         barChart = findViewById(R.id.barChart);
 
-
         progressBar = findViewById(R.id.progressBar);
     }
 
@@ -82,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Log.i(TAG,"onResume!");
         if(mUsageStatCollector.hasPermission()){
             if(barChart.isEmpty()){
-                //progressBar.setVisibility(View.VISIBLE);
+                progressBar.setVisibility(View.VISIBLE);
                 mUsageStatCollector.collectFromLast(UsageStatCollector.WEEK_MS);
             }else{
                 //chart will render the same data it has
@@ -141,7 +140,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public void handleMessage(Message msg) {
             if(msg.what == UsageStatCollector.NEW_ENTRY){
-                //progressBar.setVisibility(View.GONE);
+                progressBar.setVisibility(View.GONE);
                 AppUsageWrapper entryWrapper = (AppUsageWrapper)msg.obj;
                 CustomBarEntry entry = new CustomBarEntry(entryWrapper.appName,entryWrapper.packageName,entryList.size(),entryWrapper.time);
                 Log.i(TAG,"NEW_ENTRY:("+entryList.size()+")used "+entry.name+" time_minutes =>"+entry.getY());

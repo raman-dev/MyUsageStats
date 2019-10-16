@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class UsageStatCollector {
 
 
-    private static final float MIN_USAGE_TIME = 0f;
+    private static final float MIN_USAGE_TIME = 5f;
     public static int NEW_ENTRY = -2563;
     public static long HOUR_MS = 1000*60*60;
     public static long DAY_MS = HOUR_MS*24;
