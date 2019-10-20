@@ -3,6 +3,7 @@ package com.example.myusagestats;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.Intent;
 import android.graphics.Color;
@@ -14,6 +15,7 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.data.BarData;
@@ -23,20 +25,24 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
-    private UsageStatCollector mUsageStatCollector;
-    private Handler mHandler;//handler to recieve messages from the work threads
+    private UsageStatsCollector mUsageStatCollector;
+    private Handler UsageStatResultHandler;//handler to recieve messages from the work threads
 
     private BarData barData;
     private BarDataSet barDataSet;
     private BarChart barChart;
+    private IndexAxisValueFormatter indexAxisValueFormatter;
+
     private ArrayList<BarEntry> entryList;
     private ArrayList<String> labelList;
     private ProgressBar progressBar;
+    private TextView statusTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,11 +61,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         barDataSet.setValueTextSize(10f);
         barDataSet.setValueTextColor(Color.WHITE);
 
-
-
         barChart = findViewById(R.id.barChart);
-
         progressBar = findViewById(R.id.progressBar);
+        statusTextView = findViewById(R.id.statusTextView);
+
+        indexAxisValueFormatter = new IndexAxisValueFormatter(labelList);
+        barChart.getXAxis().setValueFormatter(indexAxisValueFormatter);
     }
 
     @Override
@@ -67,8 +74,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onStart();
         Log.i(TAG,"onStart!");
 
-        mHandler = new UsageDataHandler(Looper.getMainLooper());
-        mUsageStatCollector = new UsageStatCollector(mHandler,getPackageManager(),(UsageStatsManager)getSystemService(USAGE_STATS_SERVICE));
+        UsageStatResultHandler = new UsageDataHandler(Looper.getMainLooper());
+        mUsageStatCollector = new UsageStatsCollector(this,getPackageManager(),(UsageStatsManager)getSystemService(USAGE_STATS_SERVICE));
     }
 
     @Override
@@ -79,10 +86,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         barData.setBarWidth(0.5f);
         barChart.setData(barData);
         Log.i(TAG,"onResume!");
+
+        //usage stat collector
         if(mUsageStatCollector.hasPermission()){
             if(barChart.isEmpty()){
                 progressBar.setVisibility(View.VISIBLE);
-                mUsageStatCollector.collectFromLast(UsageStatCollector.WEEK_MS);
+                //get stats from a week ago to the current time
+                long time = System.currentTimeMillis();
+                mUsageStatCollector.collectFromLast(time - UsageStatsCollector.WEEK_MS,time, UsageStatResultHandler);
             }else{
                 //chart will render the same data it has
                 System.out.println("NOT RECALCULATING!!!");
@@ -112,24 +123,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         entryList.clear();
         labelList.clear();
 
-        mHandler.removeCallbacksAndMessages(null);
-        mHandler = null;
+        UsageStatResultHandler.removeCallbacksAndMessages(null);
+        UsageStatResultHandler = null;
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         Log.i(TAG,"onDestroy!");
-    }
-
-    @Override
-    public void onClick(View v) {
-        System.out.println(entryList.toString());
-        barData.notifyDataChanged();
-        /*barData.getDataSets().forEach( x ->{
-            System.out.println("entry_count =>"+x.getEntryCount());
-        });*/
-        barChart.invalidate();
     }
 
     private class UsageDataHandler extends Handler {
@@ -139,29 +140,36 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         public void handleMessage(Message msg) {
-            if(msg.what == UsageStatCollector.NEW_ENTRY){
-                progressBar.setVisibility(View.GONE);
+            if(msg.what == UsageStatsCollector.NEW_ENTRY){
+                //hide circular loading bar
+                if(progressBar.getVisibility() != View.GONE){
+                    progressBar.setVisibility(View.GONE);
+                    statusTextView.setText("");
+                }
+
                 AppUsageWrapper entryWrapper = (AppUsageWrapper)msg.obj;
                 CustomBarEntry entry = new CustomBarEntry(entryWrapper.appName,entryWrapper.packageName,entryList.size(),entryWrapper.time);
                 Log.i(TAG,"NEW_ENTRY:("+entryList.size()+")used "+entry.name+" time_minutes =>"+entry.getY());
 
                 labelList.add(entry.name);
 
+                //set the labels
                 barChart.getXAxis().setLabelCount(labelList.size());
-                barChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labelList));
-
+                //barChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labelList));
+                indexAxisValueFormatter.setValues(labelList.toArray(new String[0]));
                 barDataSet.addEntry(entry);
+                //tell data set and data object that data has changed
                 barDataSet.notifyDataSetChanged();
-
                 barData.notifyDataChanged();
-
-                System.out.println("entry_count=>"+barData.getEntryCount());
 
                 barChart.animateY(1500);
                 barChart.notifyDataSetChanged();
                 barChart.invalidate();
-            }else {
-                super.handleMessage(msg);
+            }else if(msg.what == UsageStatsCollector.STATUS_BUILDING_DB){
+                //update ui message
+                statusTextView.setText("Building Database...");
+            }else if(msg.what == UsageStatsCollector.STATUS_AGGREGATING_STATS){
+                statusTextView.setText("Aggregating Usage Time...");
             }
         }
     }

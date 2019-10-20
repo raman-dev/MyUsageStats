@@ -2,43 +2,49 @@ package com.example.myusagestats;
 
 import android.app.usage.UsageEvents;
 
+import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 
 @Entity(tableName = "light_event_table",primaryKeys = {"time_stamp","package_name"})
 public class LightUsageEvent {
+    @ColumnInfo(name="time_stamp")
+    @NonNull
+    private long timeStamp;
 
-    private long time_stamp;
-    private String package_name;
-    private String app_name;
-    private int event_type;
+    @ColumnInfo(name="package_name")
+    @NonNull
+    private String packageName;
+    private String appName;
+    private int eventType;
 
     public LightUsageEvent(long timeStamp, String packageName, String appName, int eventType) {
-        this.time_stamp = timeStamp;
-        this.package_name = packageName;
-        this.app_name = appName;
-        this.event_type = eventType;
+        this.timeStamp = timeStamp;
+        this.packageName = packageName;
+        this.appName = appName;
+        this.eventType = eventType;
     }
 
     public LightUsageEvent(UsageEvents.Event event, String appName){
-        this.app_name = appName;
-        this.time_stamp = event.getTimeStamp();
-        this.package_name = event.getPackageName();
-        this.event_type = event.getEventType();
+        this.appName = appName;
+        this.timeStamp = event.getTimeStamp();
+        this.packageName = event.getPackageName();
+        this.eventType = event.getEventType();
     }
 
     public long getTimeStamp() {
-        return time_stamp;
+        return timeStamp;
     }
 
     public String getPackageName() {
-        return package_name;
+        return packageName;
     }
 
     public String getAppName() {
-        return app_name;
+        return appName;
     }
 
     public int getEventType() {
-        return event_type;
+        return eventType;
     }
 }
