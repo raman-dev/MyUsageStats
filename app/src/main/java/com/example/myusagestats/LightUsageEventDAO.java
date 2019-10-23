@@ -24,11 +24,11 @@ public interface LightUsageEventDAO {
     @Query("SELECT * FROM light_event_table WHERE package_name =:packageName")
     List<LightUsageEvent> getEventsForPackage(String packageName);
 
-    //get every event after a point in time
-    @Query("SELECT * FROM light_event_table WHERE time_stamp >= :timeStamp ORDER BY time_stamp")
-    List<LightUsageEvent> getEventsSince(long timeStamp);
+    //get every event in-between two points in time
+    @Query("SELECT * FROM light_event_table WHERE time_stamp >= :startTime AND time_stamp <= :endTime ORDER BY time_stamp")
+    List<LightUsageEvent> getEventsSince(long startTime,long endTime);
 
     //get every event after a point in time for a particular package
-    @Query("SELECT * FROM light_event_table WHERE time_stamp >= :timeStamp AND package_name=:packageName")
-    List<LightUsageEvent> getEventsForPackageSince(String packageName, long timeStamp);
+    @Query("SELECT * FROM light_event_table WHERE time_stamp >= :startTime AND time_stamp <= :endTime AND package_name=:packageName")
+    List<LightUsageEvent> getEventsForPackageSince(String packageName, long startTime, long endTime);
 }

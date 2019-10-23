@@ -11,12 +11,14 @@ import java.util.concurrent.Executors;
 
 public class LightUsageEventRepository {
 
-    public static final int EVENTS_SINCE = 45;
-    public static final int EVENTS_FOR_PACKAGE_SINCE = 96;
     public static final int EVENTS_SINCE_OK = 1;
     public static final int EVENTS_SINCE_EMPTY = 2;
+    public static final int EVENTS_SINCE = 3;
+    public static final int EVENTS_FOR_PACKAGE_SINCE_EMPTY = 4;
+    public static final int EVENTS_FOR_PACKAGE_SINCE_OK = 5;
+    public static final int EVENTS_FOR_PACKAGE_SINCE = 6;
 
-    private static final int NUM_THREADS = 2;
+
     private static final int INSERT = 1;
     private static final int UPDATE = 2;
     private static final int  DELETE = 3;
@@ -27,64 +29,51 @@ public class LightUsageEventRepository {
 
     public LightUsageEventRepository(Context context){
         lightUsageEventDao = LightUsageEventDatabase.getInstance(context).lightUsageEventDao();
-        executorService = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
-    public void Insert(LightUsageEvent event){
-        if(executorService.isTerminated() || executorService.isShutdown()){
-            executorService = Executors.newFixedThreadPool(NUM_THREADS);
-        }
-        executorService.submit(new DatabaseQuery(lightUsageEventDao,event,INSERT));
+    public void Insert(LightUsageEvent event,Handler mHandler){
+        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,INSERT));
     }
 
-    public void Update(LightUsageEvent event){
-        if(executorService.isTerminated() || executorService.isShutdown()){
-            executorService = Executors.newFixedThreadPool(NUM_THREADS);
-        }
-        executorService.submit(new DatabaseQuery(lightUsageEventDao,event,UPDATE));
+    public void Update(LightUsageEvent event,Handler mHandler){
+        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,UPDATE));
     }
 
-    public void Delete(LightUsageEvent event){
-        if(executorService.isTerminated() || executorService.isShutdown()){
-            executorService = Executors.newFixedThreadPool(NUM_THREADS);
-        }
-        executorService.submit(new DatabaseQuery(lightUsageEventDao,event,DELETE));
+    public void Delete(LightUsageEvent event,Handler mHandler){
+        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,DELETE));
     }
 
-    public void getEventsSince(long timeStamp, Handler handler){
-        if(executorService.isTerminated() || executorService.isShutdown()){
-            executorService = Executors.newFixedThreadPool(NUM_THREADS);
-        }
-        executorService.submit(new GetEventsSince(timeStamp,handler,EVENTS_SINCE));
+    public void getEventsSince(long startTime, long endTime,Handler processHandler,Handler resultHandler){
+       processHandler.post(new GetEventsSince(startTime,endTime,resultHandler,EVENTS_SINCE));
     }
 
-    public void getEventsForPackageSince(String packageName,long timeStamp, Handler handler){
-        if(executorService.isTerminated() || executorService.isShutdown()){
-            executorService = Executors.newFixedThreadPool(NUM_THREADS);
-        }
-        executorService.submit(new GetEventsSince(packageName,timeStamp,handler,EVENTS_FOR_PACKAGE_SINCE));
+    public void getEventsForPackageSince(String packageName,long startTime,long endTime,Handler processHandler,Handler resultHandler){
+        processHandler.post(new GetEventsSince(packageName,startTime,endTime,resultHandler,EVENTS_FOR_PACKAGE_SINCE));
     }
 
-    public void StopRepoService(){
-        executorService.shutdown();
+    public void StopRepoService() {
+
     }
 
     private class GetEventsSince implements Runnable{
 
         private String packageName;
-        private long timeStamp;
+        private long startTime;
+        private long endTime;
         private Handler handler;
         private int action;
 
-        public GetEventsSince(long timeStamp, Handler handler,int action) {
-            this.timeStamp = timeStamp;
+        public GetEventsSince(long startTime,long endTime, Handler handler,int action) {
+            this.startTime = startTime;
+            this.endTime = endTime;
             this.handler = handler;
             this.action = action;
         }
 
-        public GetEventsSince(String packageName,long timeStamp,Handler handler,int action){
+        public GetEventsSince(String packageName,long startTime,long endTime,Handler handler,int action){
             this.packageName = packageName;
-            this.timeStamp = timeStamp;
+            this.startTime = startTime;
+            this.endTime = endTime;
             this.handler = handler;
             this.action = action;
         }
@@ -95,27 +84,29 @@ public class LightUsageEventRepository {
             Message message = handler.obtainMessage();
             switch (action){
                 case EVENTS_SINCE:
-
-                    list = lightUsageEventDao.getEventsSince(timeStamp);
+                    list = lightUsageEventDao.getEventsSince(startTime,endTime);
                     message = handler.obtainMessage();
                     if(list.isEmpty()){
                         message.what = EVENTS_SINCE_EMPTY;
-                        message.obj = timeStamp;
-                        System.out.println("REPOSITORY IS EMPTY!");
+                        message.obj = startTime;
                     }else{
                         message.what = EVENTS_SINCE_OK;
                         message.obj = list;
-                        System.out.println("SENDING_EVENTS FROM REPOSITORY!");
                     }
                     handler.sendMessage(message);
                     break;
-
                 case EVENTS_FOR_PACKAGE_SINCE:
-                    list = lightUsageEventDao.getEventsForPackageSince(packageName,timeStamp);
-                    message.what = EVENTS_FOR_PACKAGE_SINCE;
-                    message.obj = list;
+                    list = lightUsageEventDao.getEventsForPackageSince(packageName, startTime,endTime);
+                    if(list.size() == 0){
+                        message.what = EVENTS_FOR_PACKAGE_SINCE_EMPTY;
+                        message.obj = packageName;
+                    }else{
+                        message.what = EVENTS_FOR_PACKAGE_SINCE_OK;
+                        message.obj = list;
+                    }
                     handler.sendMessage(message);
                     break;
+                default:
             }
 
         }
