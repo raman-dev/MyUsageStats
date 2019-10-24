@@ -4,10 +4,14 @@ import android.app.usage.UsageEvents;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
+import android.provider.ContactsContract;
+import android.util.Log;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class LightUsageEventRepository {
 
@@ -22,37 +26,65 @@ public class LightUsageEventRepository {
     private static final int INSERT = 1;
     private static final int UPDATE = 2;
     private static final int  DELETE = 3;
+    private static final long IO_TIMEOUT = 5;
 
-    private ExecutorService executorService;
+    public static final String TAG = "LUERepository";
+
+
     private LightUsageEventDAO lightUsageEventDao;
 
+    private static LightUsageEventRepository mInstance;
+    private static ExecutorService repoService;
 
-    public LightUsageEventRepository(Context context){
+    private LightUsageEventRepository(Context context){
         lightUsageEventDao = LightUsageEventDatabase.getInstance(context).lightUsageEventDao();
     }
 
-    public void Insert(LightUsageEvent event,Handler mHandler){
-        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,INSERT));
+    public static LightUsageEventRepository getInstance(Context context){
+        if(mInstance == null){
+            mInstance = new LightUsageEventRepository(context);
+            repoService = Executors.newSingleThreadExecutor();
+        }
+        return mInstance;
     }
 
-    public void Update(LightUsageEvent event,Handler mHandler){
-        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,UPDATE));
+    public static void StartRepoService(){
+        if(repoService == null || repoService.isTerminated() || repoService.isShutdown()){
+            Log.i(TAG,"Starting Repo Service...");
+            repoService = Executors.newSingleThreadExecutor();
+        }
     }
 
-    public void Delete(LightUsageEvent event,Handler mHandler){
-        mHandler.post(new DatabaseQuery(lightUsageEventDao,event,DELETE));
+    public void Insert(LightUsageEvent event){
+        repoService.submit(new DatabaseQuery(lightUsageEventDao,event,INSERT));
     }
 
-    public void getEventsSince(long startTime, long endTime,Handler processHandler,Handler resultHandler){
-       processHandler.post(new GetEventsSince(startTime,endTime,resultHandler,EVENTS_SINCE));
+    public void Update(LightUsageEvent event){
+        repoService.submit(new DatabaseQuery(lightUsageEventDao,event,UPDATE));
     }
 
-    public void getEventsForPackageSince(String packageName,long startTime,long endTime,Handler processHandler,Handler resultHandler){
-        processHandler.post(new GetEventsSince(packageName,startTime,endTime,resultHandler,EVENTS_FOR_PACKAGE_SINCE));
+    public void Delete(LightUsageEvent event){
+        repoService.submit(new DatabaseQuery(lightUsageEventDao,event,DELETE));
     }
 
-    public void StopRepoService() {
+    public void getEventsSince(long startTime, long endTime,Handler resultHandler){
+        repoService.submit(new GetEventsSince(startTime,endTime,resultHandler,EVENTS_SINCE));
+    }
 
+    public void getEventsForPackageSince(String packageName,long startTime,long endTime,Handler resultHandler){
+        repoService.submit(new GetEventsSince(packageName,startTime,endTime,resultHandler,EVENTS_FOR_PACKAGE_SINCE));
+    }
+
+    public static void StopRepoService() {
+        if(repoService != null && !repoService.isShutdown() && !repoService.isTerminated()){
+            Log.i(TAG,"Stopping Repo Service...");
+            repoService.shutdown();
+            try {
+                repoService.awaitTermination(IO_TIMEOUT, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private class GetEventsSince implements Runnable{
@@ -128,11 +160,7 @@ public class LightUsageEventRepository {
         public void run() {
             switch(action){
                 case INSERT:
-                    int type = event.getEventType();
-                    //guarantee database events are only of this type
-                    if(type == UsageEvents.Event.MOVE_TO_FOREGROUND || type == UsageEvents.Event.MOVE_TO_BACKGROUND){
-                        lightUsageEventDao.insert(event);
-                    }
+                    lightUsageEventDao.insert(event);
                     break;
                 case UPDATE:
                     lightUsageEventDao.update(event);
