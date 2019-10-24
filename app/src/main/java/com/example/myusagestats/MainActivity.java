@@ -20,6 +20,9 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
+    private ViewPager viewPager;
+    private MyPagerAdapter myPagerAdapter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -29,10 +32,10 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.mainToolbar);
         setSupportActionBar(toolbar);
 
-        MyPagerAdapter myPagerAdapter = new MyPagerAdapter(getSupportFragmentManager(), FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
-        ViewPager viewPager = findViewById(R.id.viewPager);
-        viewPager.setAdapter(myPagerAdapter);
-        viewPager.setOffscreenPageLimit(MyPagerAdapter.NUM_PAGES);
+        myPagerAdapter = new MyPagerAdapter(getSupportFragmentManager(), FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
+        viewPager = findViewById(R.id.viewPager);
+        //viewPager.setAdapter(myPagerAdapter);
+        //viewPager.setOffscreenPageLimit(MyPagerAdapter.NUM_PAGES);
 
         TabLayout tabs = findViewById(R.id.tabs);
         tabs.setupWithViewPager(viewPager);
@@ -61,6 +64,9 @@ public class MainActivity extends AppCompatActivity {
         }
         if(!granted){
             startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        }else{
+            viewPager.setAdapter(myPagerAdapter);
+            viewPager.setOffscreenPageLimit(MyPagerAdapter.NUM_PAGES);
         }
     }
 
