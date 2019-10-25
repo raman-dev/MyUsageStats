@@ -1,4 +1,4 @@
-package com.example.myusagestats;
+package com.example.myusagestats.database;
 
 import android.content.Context;
 

@@ -4,9 +4,6 @@ import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
-
-import androidx.fragment.app.Fragment;
-
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -17,6 +14,8 @@ import android.view.ViewGroup;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.fragment.app.Fragment;
+
 import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.data.BarData;
 import com.github.mikephil.charting.data.BarDataSet;
@@ -25,9 +24,11 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 
 import static android.content.Context.USAGE_STATS_SERVICE;
 import static com.example.myusagestats.UsageStatsCollectorX.STATUS_AGGREGATING_STATS;
+import static com.example.myusagestats.UsageStatsCollectorX.STATUS_AGGREGATION_COMPLETE;
 import static com.example.myusagestats.UsageStatsCollectorX.STATUS_BUILDING_DB;
 import static com.example.myusagestats.UsageStatsCollectorX.STATUS_UPDATING_DB;
 
@@ -35,8 +36,6 @@ public class ChartFragment extends Fragment {
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String INTERVAL_LENGTH = "com.example.myusagestats.INTERVAL_LENGTH";
-    private static final String PROCESS_UID = "com.example.myusagestats.PROCESS_UID";
-    private static final String PACKAGE_NAME = "com.example.myusagestats.PACKAGE_NAME";
     private final String TAG = "Chart";
     private long intervalLength;
 
@@ -63,6 +62,7 @@ public class ChartFragment extends Fragment {
     private BarChart barChart;
     private IndexAxisValueFormatter indexAxisValueFormatter;
 
+    private ArrayList<AppUsageWrapper> usageList;
     private ArrayList<BarEntry> entryList;
     private ArrayList<String> labelList;
     private ProgressBar progressBar;
@@ -76,6 +76,8 @@ public class ChartFragment extends Fragment {
         }
         entryList = new ArrayList<>();
         labelList = new ArrayList<>();
+        usageList = new ArrayList<>();
+
         indexAxisValueFormatter = new IndexAxisValueFormatter(labelList);
 
         Context context = getContext();
@@ -140,11 +142,16 @@ public class ChartFragment extends Fragment {
         super.onStop();
 
         barChart.clear();
-        barData.clearValues();
-        barDataSet.clear();
+        if(barData != null){
+            barData.clearValues();
+        }
+        if(barDataSet!=null) {
+            barDataSet.clear();
+        }
 
         entryList.clear();
         labelList.clear();
+        usageList.clear();
 
         UsageStatResultHandler.removeCallbacksAndMessages(null);
         UsageStatResultHandler = null;
@@ -163,34 +170,50 @@ public class ChartFragment extends Fragment {
     }
 
     private class UsageDataHandler extends Handler {
+        private Comparator<AppUsageWrapper> comparator = (a, b) -> {
+            if(a.time < b.time){
+                return 1;
+            }else if(a.time > b.time){
+                return -1;
+            }else{
+                return 0;
+            }
+        };
+
+        private int max_objects = 0;
+        private int offset = 0;
         public UsageDataHandler(Looper mainLooper) {
             super(mainLooper);
         }
 
         @Override
         public void handleMessage(Message msg) {
-            if(msg.what == UsageStatsCollectorX.STATUS_NEW_ENTRY){
+            if(msg.what == UsageStatsCollectorX.STATUS_NUM_RESULTS){
+                //set the internal counter of how many objects to come
+                max_objects = (Integer)msg.obj;
+            }else if(msg.what == UsageStatsCollectorX.STATUS_EMPTY_ENTRY){
+                offset--;
+                if(usageList.size() == max_objects + offset){
+                    Message message = obtainMessage();
+                    message.what = STATUS_AGGREGATION_COMPLETE;
+                    sendMessage(message);
+                }
+            }
+            else if(msg.what == UsageStatsCollectorX.STATUS_NEW_ENTRY){
                 //hide circular loading bar
                 if(progressBar.getVisibility() != View.GONE){
                     progressBar.setVisibility(View.GONE);
                     statusTextView.setText("");
                 }
                 AppUsageWrapper entryWrapper = (AppUsageWrapper)msg.obj;
-                CustomBarEntry entry = new CustomBarEntry(entryWrapper.appName,entryWrapper.packageName,entryList.size(),entryWrapper.time);
-                Log.i(TAG,"NEW_ENTRY:("+entryList.size()+")used "+entry.name+" time_minutes =>"+entry.getY());
+                usageList.add(entryWrapper);
+                Log.i(TAG,"NEW_ENTRY:("+usageList.size()+")used "+entryWrapper.appName+" time_minutes =>"+entryWrapper.time);
 
-                labelList.add(entry.name);
-                //set the labels
-                barChart.getXAxis().setLabelCount(labelList.size());
-                indexAxisValueFormatter.setValues(labelList.toArray(new String[0]));
-                barDataSet.addEntry(entry);
-                //tell data set and data object that data has changed
-                barDataSet.notifyDataSetChanged();
-                barData.notifyDataChanged();
-
-                barChart.animateY(1500);
-                barChart.notifyDataSetChanged();
-                barChart.invalidate();
+                if(usageList.size() == max_objects + offset){
+                    Message message = obtainMessage();
+                    message.what = STATUS_AGGREGATION_COMPLETE;
+                    sendMessage(message);
+                }
             }else if(msg.what == STATUS_BUILDING_DB){
                 //update ui message
                 statusTextView.setText("Building Database...");
@@ -199,6 +222,26 @@ public class ChartFragment extends Fragment {
             }
             else if(msg.what == STATUS_AGGREGATING_STATS){
                 statusTextView.setText("Aggregating Usage Time...");
+            }
+            else if(msg.what == STATUS_AGGREGATION_COMPLETE){
+                System.out.println("AGGREGATION_COMPLETE!");
+                usageList.sort(comparator);
+
+                for (int i = 0; i < usageList.size(); i++) {
+                    AppUsageWrapper x = usageList.get(i);
+                    barDataSet.addEntry(new BarEntry(i,x.time));
+                    labelList.add(x.appName);
+                }
+
+                barChart.getXAxis().setLabelCount(labelList.size());
+                indexAxisValueFormatter.setValues(labelList.toArray(new String[0]));
+                //tell data set and data object that data has changed
+                barDataSet.notifyDataSetChanged();
+                barData.notifyDataChanged();
+
+                barChart.animateY(1500);
+                barChart.notifyDataSetChanged();
+                barChart.invalidate();
             }
         }
     }

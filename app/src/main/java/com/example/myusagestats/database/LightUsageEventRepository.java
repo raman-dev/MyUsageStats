@@ -1,14 +1,11 @@
-package com.example.myusagestats;
+package com.example.myusagestats.database;
 
-import android.app.usage.UsageEvents;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
-import android.provider.ContactsContract;
 import android.util.Log;
 
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;

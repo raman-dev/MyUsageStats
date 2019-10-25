@@ -1,4 +1,4 @@
-package com.example.myusagestats;
+package com.example.myusagestats.database;
 
 import androidx.room.Dao;
 import androidx.room.Delete;

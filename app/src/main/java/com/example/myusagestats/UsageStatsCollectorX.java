@@ -12,6 +12,9 @@ import android.os.Message;
 
 import androidx.annotation.NonNull;
 
+import com.example.myusagestats.database.LightUsageEvent;
+import com.example.myusagestats.database.LightUsageEventRepository;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,12 +23,13 @@ import java.util.concurrent.Executors;
 
 import static android.app.usage.UsageEvents.Event.MOVE_TO_BACKGROUND;
 import static android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND;
-import static com.example.myusagestats.LightUsageEventRepository.EVENTS_SINCE_EMPTY;
-import static com.example.myusagestats.LightUsageEventRepository.EVENTS_SINCE_OK;
+import static com.example.myusagestats.database.LightUsageEventRepository.EVENTS_SINCE_EMPTY;
+import static com.example.myusagestats.database.LightUsageEventRepository.EVENTS_SINCE_OK;
 
 public class UsageStatsCollectorX {
 
-    private static final int NUM_THREADS = 2;
+    private static final int NUM_THREADS = 1;
+
     private PackageManager packageManager;
     private UsageStatsManager usageStatsManager;
     private LightUsageEventRepository repository;//
@@ -48,6 +52,9 @@ public class UsageStatsCollectorX {
     public static final int STATUS_BUILDING_DB = 2;
     public static final int STATUS_AGGREGATING_STATS = 3;
     public static final int STATUS_UPDATING_DB = 4;
+    public static final int STATUS_AGGREGATION_COMPLETE = 5;
+    public static final int STATUS_NUM_RESULTS = 6;
+    public static final int STATUS_EMPTY_ENTRY = 7;
 
 
     private long queryStart = 0;
@@ -175,8 +182,9 @@ public class UsageStatsCollectorX {
                     nameEventMap.get(x.getPackageName()).add(x);
                 }
             });
+            sendResult(STATUS_NUM_RESULTS,nameEventMap.size());
             sendResult(STATUS_AGGREGATING_STATS,0);
-            //now for each packageName and list aggregate and send result to result thread
+            //now for each packageName and list aggregate and send result to result
             nameEventMap.forEach( (x,y) -> timeAggregator.submit(new TimeAggregateRunnable(y)));
         }
 
@@ -212,6 +220,7 @@ public class UsageStatsCollectorX {
 
         private class TimeAggregateRunnable implements Runnable{
             private ArrayList<LightUsageEvent> list;
+
             public TimeAggregateRunnable(ArrayList<LightUsageEvent> list){
                 this.list = list;
             }
@@ -225,6 +234,8 @@ public class UsageStatsCollectorX {
                 if(usageTime > MIN_USAGE_TIME){
                     AppUsageWrapper appUsageWrapper = new AppUsageWrapper(packageName,appName,usageTime);
                     sendResult(STATUS_NEW_ENTRY,appUsageWrapper);
+                }else{
+                    sendResult(STATUS_EMPTY_ENTRY,0);
                 }
             }
 
